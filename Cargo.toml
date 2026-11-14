@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-fyrox = { version = "0.34", default-features = false, features = ["mesh_analysis"] }
+eframe = "0.29.1"
+egui = "0.29.1"
+egui_glow = "0.29.1"
+glam = "0.29"
 
 [profile.release]
 opt-level = 3
