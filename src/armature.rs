@@ -9,9 +9,8 @@ pub struct Bone {
     pub tail: Vec3,
     pub roll: f32,
     pub selected: bool,
-    // Pose transform
     pub pose_position: Vec3,
-    pub pose_rotation: Vec3, // Euler degrees
+    pub pose_rotation: Vec3,
     pub pose_scale: Vec3,
 }
 
@@ -39,7 +38,7 @@ impl Bone {
         let up = if dir.y.abs() > 0.99 { Vec3::Z } else { Vec3::Y };
         let right = dir.cross(up).normalize();
         let actual_up = right.cross(dir).normalize();
-        
+
         Mat4::from_cols(
             right.extend(0.0),
             dir.extend(0.0),
@@ -74,38 +73,30 @@ pub struct Armature {
 impl Armature {
     pub fn empty() -> Self {
         Self {
-            bones: Vec::new(),
+            bones: Vec::new>,
             ik_constraints: Vec::new(),
         }
     }
 
     pub fn new_steve_armature() -> Self {
         let mut arm = Self::empty();
-        
-        // Root / Hips (Bone 0)
+
         arm.bones.push(Bone::new("Root", Vec3::new(0.0, 0.75, 0.0), Vec3::new(0.0, 1.125, 0.0), None));
-        // Spine / Chest (Bone 1)
         arm.bones.push(Bone::new("Spine", Vec3::new(0.0, 1.125, 0.0), Vec3::new(0.0, 1.5, 0.0), Some(0)));
-        // Head (Bone 2)
         arm.bones.push(Bone::new("Head", Vec3::new(0.0, 1.5, 0.0), Vec3::new(0.0, 2.0, 0.0), Some(1)));
-        
-        // Right Arm (Shoulder -> Hand) (Bones 3, 4)
+
         arm.bones.push(Bone::new("Arm_Upper_R", Vec3::new(0.375, 1.375, 0.0), Vec3::new(0.375, 1.0, 0.0), Some(1)));
         arm.bones.push(Bone::new("Arm_Lower_R", Vec3::new(0.375, 1.0, 0.0), Vec3::new(0.375, 0.625, 0.0), Some(3)));
 
-        // Left Arm (Shoulder -> Hand) (Bones 5, 6)
         arm.bones.push(Bone::new("Arm_Upper_L", Vec3::new(-0.375, 1.375, 0.0), Vec3::new(-0.375, 1.0, 0.0), Some(1)));
         arm.bones.push(Bone::new("Arm_Lower_L", Vec3::new(-0.375, 1.0, 0.0), Vec3::new(-0.375, 0.625, 0.0), Some(5)));
 
-        // Right Leg (Hip -> Foot) (Bones 7, 8)
         arm.bones.push(Bone::new("Leg_Upper_R", Vec3::new(0.125, 0.75, 0.0), Vec3::new(0.125, 0.375, 0.0), Some(0)));
         arm.bones.push(Bone::new("Leg_Lower_R", Vec3::new(0.125, 0.375, 0.0), Vec3::new(0.125, 0.0, 0.0), Some(7)));
 
-        // Left Leg (Hip -> Foot) (Bones 9, 10)
         arm.bones.push(Bone::new("Leg_Upper_L", Vec3::new(-0.125, 0.75, 0.0), Vec3::new(-0.125, 0.375, 0.0), Some(0)));
         arm.bones.push(Bone::new("Leg_Lower_L", Vec3::new(-0.125, 0.375, 0.0), Vec3::new(-0.125, 0.0, 0.0), Some(9)));
 
-        // Add standard IK Constraints for Legs (to pin feet on ground easily)
         arm.ik_constraints.push(IKConstraint {
             tip_bone: 8,
             mid_bone: 7,
@@ -126,21 +117,7 @@ impl Armature {
         arm
     }
 
-    pub fn compute_world_rest_matrices(&self) -> Vec<Mat4> {
-        let mut mats = vec![Mat4::IDENTITY; self.bones.len()];
-        for (i, b) in self.bones.iter().enumerate() {
-            let local = b.local_rest_matrix();
-            mats[i] = if let Some(parent_idx) = b.parent {
-                mats[parent_idx] * local
-            } else {
-                local
-            };
-        }
-        mats
-    }
-
-    pub fn compute_world_pose_matrices(&mut self) -> Vec<Mat4> {
-        self.solve_ik();
+    pub fn compute_world_pose_matrices(&self) -> Vec<Mat4> {
         let mut mats = vec![Mat4::IDENTITY; self.bones.len()];
         for (i, b) in self.bones.iter().enumerate() {
             let local_pose = b.local_rest_matrix() * b.pose_matrix();
@@ -162,7 +139,6 @@ impl Armature {
             let target_vec = ik.target - p_root;
             let dist = target_vec.length().clamp(0.001, len_a + len_b - 0.001);
 
-            // Two-bone Law of Cosines
             let cos_angle_a = ((len_a * len_a + dist * dist - len_b * len_b) / (2.0 * len_a * dist)).clamp(-1.0, 1.0);
             let angle_a = cos_angle_a.acos();
 
@@ -197,7 +173,7 @@ impl Armature {
                 distances.push((bi, dist));
             }
 
-            distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+            distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
             let mut total_w = 0.0;
             let count = distances.len().min(4);
@@ -219,4 +195,4 @@ impl Armature {
             }
         }
     }
-      }
+}
