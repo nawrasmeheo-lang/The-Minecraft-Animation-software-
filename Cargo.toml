@@ -4,12 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-eframe = "0.29.1"
-egui = "0.29.1"
-egui_glow = "0.29.1"
-glam = "0.29"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+fyrox = { version = "0.34", default-features = false, features = ["mesh_analysis"] }
 
 [profile.release]
 opt-level = 3
