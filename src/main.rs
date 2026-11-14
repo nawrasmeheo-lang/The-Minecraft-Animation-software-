@@ -1,5 +1,4 @@
 use eframe::egui;
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -699,8 +698,6 @@ fn main() -> eframe::Result<()> {
             .with_title("APPCRAFT 0.2"),
         renderer: eframe::Renderer::Glow,
         depth_buffer: 24,
-        follow_system_theme: false,
-        default_theme: eframe::Theme::Dark,
         ..Default::default()
     };
 
@@ -964,6 +961,9 @@ impl eframe::App for AppCraftApp {
             .show(ctx, |ui| {
                 if let Ok(mut sc) = self.scene.lock() {
                     let mut frame_changed = false;
+                    let start_f = sc.timeline.start_frame;
+                    let end_f = sc.timeline.end_frame;
+
                     ui.horizontal(|ui| {
                         let play_txt = if sc.timeline.playing { "Pause" } else { "Play" };
                         if ui.button(play_txt).clicked() {
@@ -983,7 +983,7 @@ impl eframe::App for AppCraftApp {
                         if ui
                             .add(
                                 egui::DragValue::new(&mut sc.timeline.current_frame)
-                                    .range(sc.timeline.start_frame..=sc.timeline.end_frame),
+                                    .range(start_f..=end_f),
                             )
                             .changed()
                         {
@@ -994,11 +994,8 @@ impl eframe::App for AppCraftApp {
                     });
                     if ui
                         .add(
-                            egui::Slider::new(
-                                &mut sc.timeline.current_frame,
-                                sc.timeline.start_frame..=sc.timeline.end_frame,
-                            )
-                            .show_value(false),
+                            egui::Slider::new(&mut sc.timeline.current_frame, start_f..=end_f)
+                                .show_value(false),
                         )
                         .changed()
                     {
@@ -1016,6 +1013,7 @@ impl eframe::App for AppCraftApp {
             .show(ctx, |ui| {
                 if let Ok(mut sc) = self.scene.lock() {
                     let selected_id = sc.selected_id;
+                    let mut new_selected = None;
                     ui.heading("Outliner");
                     egui::ScrollArea::vertical()
                         .max_height(180.0)
@@ -1029,11 +1027,14 @@ impl eframe::App for AppCraftApp {
                                         .selectable_label(selected, format!("{}{}", prefix, obj.name))
                                         .clicked()
                                     {
-                                        sc.selected_id = Some(obj.id);
+                                        new_selected = Some(obj.id);
                                     }
                                 });
                             }
                         });
+                    if let Some(id) = new_selected {
+                        sc.selected_id = Some(id);
+                    }
 
                     ui.separator();
                     ui.heading("Properties");
@@ -1321,4 +1322,4 @@ fn apply_blender_theme(ctx: &egui::Context) {
     style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(71, 114, 179);
     style.visuals.selection.bg_fill = egui::Color32::from_rgb(71, 114, 179);
     ctx.set_style(style);
-            }
+                }
