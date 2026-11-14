@@ -35,11 +35,7 @@ pub enum ViewportShading {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PropertiesTab {
     Render,
-    Output,
-    ViewLayer,
-    Scene,
     World,
-    Collection,
     Object,
     Modifiers,
     Armature,
@@ -129,20 +125,17 @@ struct AppCraftApp {
     preferences: AppPreferences,
     show_preferences_window: bool,
 
-    // Camera
     cam_target: Vec3,
     cam_dist: f32,
     cam_yaw: f32,
     cam_pitch: f32,
 
-    // Undo / Redo
     undo_stack: Vec<AppStateSnapshot>,
     redo_stack: Vec<AppStateSnapshot>,
 
-    // Transform Modal (G / R / S)
     modal_active: bool,
-    modal_tool: u8, // 1=G, 2=R, 3=S
-    axis_lock: u8,  // 0=None, 1=X, 2=Y, 3=Z
+    modal_tool: u8,
+    axis_lock: u8,
     modal_initial_pos: Vec3,
     modal_initial_rot: Vec3,
     modal_initial_scale: Vec3,
@@ -191,7 +184,6 @@ impl AppCraftApp {
             next_id: 1,
         };
 
-        // Create Default Steve Object with Mesh + Armature
         app.spawn_steve_default();
         app
     }
@@ -241,7 +233,7 @@ impl AppCraftApp {
         self.next_id += 1;
 
         let mut cube = EditableMesh::new_cube(1.0);
-        cube.subdivide(); // Prepare limbs for smooth bends
+        cube.subdivide();
 
         let mut arm = Armature::new_steve_armature();
         arm.calculate_auto_weights(&mut cube.vertices);
@@ -264,10 +256,8 @@ impl eframe::App for AppCraftApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         apply_blender_dark_theme(ctx);
 
-        // Global Blender Keyboard Shortcuts
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
-                // Tab -> Toggle Object / Edit / Pose
                 if i.key_pressed(egui::Key::Tab) {
                     self.push_undo();
                     self.mode = match self.mode {
@@ -287,13 +277,11 @@ impl eframe::App for AppCraftApp {
                     };
                 }
 
-                // Edit Mode Selection Modes: 1, 2, 3
                 if self.mode == InteractionMode::Edit {
                     if i.key_pressed(egui::Key::Num1) { self.select_mode = SelectMode::Vertex; }
                     if i.key_pressed(egui::Key::Num2) { self.select_mode = SelectMode::Edge; }
                     if i.key_pressed(egui::Key::Num3) { self.select_mode = SelectMode::Face; }
 
-                    // Extrude: E
                     if i.key_pressed(egui::Key::E) {
                         self.push_undo();
                         if let Some(id) = self.selected_id {
@@ -307,7 +295,6 @@ impl eframe::App for AppCraftApp {
                         }
                     }
 
-                    // Subdivide
                     if i.modifiers.ctrl && i.key_pressed(egui::Key::R) {
                         self.push_undo();
                         if let Some(id) = self.selected_id {
@@ -321,7 +308,6 @@ impl eframe::App for AppCraftApp {
                     }
                 }
 
-                // Undo / Redo (Ctrl+Z / Ctrl+Shift+Z)
                 if i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Z) {
                     self.undo();
                 }
@@ -329,12 +315,10 @@ impl eframe::App for AppCraftApp {
                     self.redo();
                 }
 
-                // Preferences: Ctrl+Alt+U
                 if i.modifiers.ctrl && i.modifiers.alt && i.key_pressed(egui::Key::U) {
                     self.show_preferences_window = true;
                 }
 
-                // A: Select All / Alt+A: Deselect All
                 if i.key_pressed(egui::Key::A) {
                     let select = !i.modifiers.alt;
                     if let Some(id) = self.selected_id {
@@ -349,7 +333,6 @@ impl eframe::App for AppCraftApp {
                     }
                 }
 
-                // Transform Modals: G (Grab), R (Rotate), S (Scale)
                 if !self.modal_active {
                     if i.key_pressed(egui::Key::G) { self.start_modal(1); }
                     if i.key_pressed(egui::Key::R) { self.start_modal(2); }
@@ -364,7 +347,6 @@ impl eframe::App for AppCraftApp {
             });
         }
 
-        // 1. Top Blender Header Bar
         egui::TopBottomPanel::top("blender_header").exact_height(28.0).show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.label("APPCRAFT");
@@ -426,7 +408,6 @@ impl eframe::App for AppCraftApp {
                 });
 
                 ui.separator();
-                // Interaction Mode Selector
                 let mode_str = match self.mode {
                     InteractionMode::Object => "Object Mode",
                     InteractionMode::Edit => "Edit Mode",
@@ -445,7 +426,6 @@ impl eframe::App for AppCraftApp {
                     ui.selectable_value(&mut self.select_mode, SelectMode::Face, "3: Face");
                 }
 
-                // Viewport Shading Spheres
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.selectable_value(&mut self.shading, ViewportShading::Rendered, "Render");
                     ui.selectable_value(&mut self.shading, ViewportShading::MaterialPreview, "Material");
@@ -455,14 +435,12 @@ impl eframe::App for AppCraftApp {
             });
         });
 
-        // 2. Bottom Status Bar
         egui::TopBottomPanel::bottom("status_bar").exact_height(20.0).show(ctx, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.label(&self.status_bar);
             });
         });
 
-        // 3. Right Blender Properties & Outliner (Vertical Tabs)
         egui::SidePanel::right("blender_properties").default_width(280.0).resizable(true).show(ctx, |ui| {
             ui.heading("Outliner");
             egui::ScrollArea::vertical().max_height(140.0).show(ui, |ui| {
@@ -478,7 +456,6 @@ impl eframe::App for AppCraftApp {
             });
 
             ui.separator();
-            // Vertical Blender Properties Tabs
             ui.horizontal_wrapped(|ui| {
                 for (tab, label) in [
                     (PropertiesTab::Render, "Render"),
@@ -527,7 +504,9 @@ impl eframe::App for AppCraftApp {
                             if let Some(arm) = &mut obj.armature {
                                 ui.label(format!("Bones: {}", arm.bones.len()));
                                 for ik in &mut arm.ik_constraints {
-                                    ui.checkbox(&mut ik.enabled, "Enable Leg 2-Bone IK");
+                                    if ui.checkbox(&mut ik.enabled, "Enable Leg 2-Bone IK").changed() {
+                                        arm.solve_ik();
+                                    }
                                 }
                                 if ui.button("Clear Pose Transforms (Alt+R)").clicked() {
                                     arm.clear_pose_transforms();
@@ -542,21 +521,17 @@ impl eframe::App for AppCraftApp {
             }
         });
 
-        // 4. Central 3D Viewport
         egui::CentralPanel::default().frame(egui::Frame::none()).show(ctx, |ui| {
             let rect = ui.available_rect_before_wrap();
             let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
 
-            // Camera Orbit & Zoom
             if !self.modal_active {
                 if response.dragged_by(egui::PointerButton::Middle) {
                     let d = response.drag_delta();
                     if ctx.input(|i| i.modifiers.shift) {
-                        // Pan
                         self.cam_target.x -= d.x * 0.01;
                         self.cam_target.y += d.y * 0.01;
                     } else {
-                        // Orbit
                         self.cam_yaw -= d.x * self.preferences.orbit_sensitivity;
                         self.cam_pitch = (self.cam_pitch + d.y * self.preferences.orbit_sensitivity).clamp(-1.45, 1.45);
                     }
@@ -568,13 +543,11 @@ impl eframe::App for AppCraftApp {
                     }
                 }
             } else {
-                // Apply Transform Modal Delta
                 let d = ctx.input(|i| i.pointer.delta());
                 self.apply_modal_delta(d);
                 if response.clicked() { self.modal_active = false; }
             }
 
-            // OpenGL Viewport Render Callback
             let ppp = ctx.pixels_per_point();
             let screen_h = (ctx.screen_rect().height() * ppp) as i32;
             let vp_rect = [
@@ -595,7 +568,7 @@ impl eframe::App for AppCraftApp {
             let vp_matrix = proj * view;
 
             let renderer_arc = Arc::clone(&self.renderer);
-            let mut objects_clone = self.objects.clone();
+            let objects_clone = self.objects.clone();
             let sel_id = self.selected_id;
             let mode = self.mode;
             let select_mode = self.select_mode;
@@ -609,7 +582,7 @@ impl eframe::App for AppCraftApp {
                             r.begin_frame(vp_rect);
                             if show_grid { r.draw_grid(&vp_matrix); }
 
-                            for obj in &mut objects_clone {
+                            for obj in &objects_clone {
                                 if !obj.visible { continue; }
                                 let world = obj.world_matrix();
                                 let is_selected = sel_id == Some(obj.id);
@@ -625,7 +598,7 @@ impl eframe::App for AppCraftApp {
                                     );
                                 }
 
-                                if let Some(arm) = &mut obj.armature {
+                                if let Some(arm) = &obj.armature {
                                     r.draw_armature_xray(
                                         arm,
                                         &world,
@@ -643,7 +616,6 @@ impl eframe::App for AppCraftApp {
             ui.painter().add(cb);
         });
 
-        // 5. Preferences Window (Ctrl+Alt+U)
         if self.show_preferences_window {
             egui::Window::new("Blender Preferences")
                 .open(&mut self.show_preferences_window)
@@ -694,7 +666,7 @@ impl AppCraftApp {
             if let Some(obj) = self.objects.iter_mut().find(|o| o.id == id) {
                 let s = 0.02;
                 match self.modal_tool {
-                    1 => { // Grab (G)
+                    1 => {
                         match self.axis_lock {
                             1 => obj.position.x += delta.x * s,
                             2 => obj.position.y -= delta.y * s,
@@ -702,7 +674,7 @@ impl AppCraftApp {
                             _ => { obj.position.x += delta.x * s; obj.position.y -= delta.y * s; }
                         }
                     }
-                    2 => { // Rotate (R)
+                    2 => {
                         let rs = 0.8;
                         match self.axis_lock {
                             1 => obj.rotation_deg.x += delta.x * rs,
@@ -711,7 +683,7 @@ impl AppCraftApp {
                             _ => obj.rotation_deg.y += delta.x * rs,
                         }
                     }
-                    3 => { // Scale (S)
+                    3 => {
                         let sc = delta.x * 0.01;
                         match self.axis_lock {
                             1 => obj.scale.x = (obj.scale.x + sc).max(0.01),
@@ -743,4 +715,4 @@ fn apply_blender_dark_theme(ctx: &egui::Context) {
     style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(71, 114, 179);
     style.visuals.selection.bg_fill = egui::Color32::from_rgb(71, 114, 179);
     ctx.set_style(style);
-            }
+                                          }
