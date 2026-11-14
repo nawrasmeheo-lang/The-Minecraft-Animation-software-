@@ -10,7 +10,7 @@ layout (location = 1) in vec3 a_norm_or_col;
 
 uniform mat4 u_mvp;
 uniform mat4 u_model;
-uniform int u_mode; // 0 = shaded mesh, 1 = unlit lines, 2 = points
+uniform int u_mode;
 
 out vec3 v_normal;
 out vec3 v_data;
@@ -36,11 +36,7 @@ uniform float u_selected;
 out vec4 FragColor;
 
 void main() {
-    if (u_mode == 1) { // Unlit Lines / Grid / Bone X-Ray
-        FragColor = vec4(v_data, 1.0);
-        return;
-    }
-    if (u_mode == 2) { // Vertices in Edit Mode
+    if (u_mode == 1 || u_mode == 2) {
         FragColor = vec4(v_data, 1.0);
         return;
     }
@@ -74,7 +70,6 @@ impl GlUnifiedRenderer {
             let program = compile_program(&gl, VERT_SRC, FRAG_SRC)?;
             let dyn_vao = gl.create_vertex_array()?;
             let dyn_vbo = gl.create_buffer()?;
-
             let (grid_vao, grid_vbo, grid_vert_count) = create_grid(&gl, 16)?;
 
             Ok(Self {
@@ -128,11 +123,9 @@ impl GlUnifiedRenderer {
             let gl = &self.gl;
             self.upload_dyn_buffer(&tris);
 
-            // 1. Shaded Faces
             self.set_uniforms(&mvp, world, 0, Vec3::new(0.72, 0.72, 0.74), if selected { 1.0 } else { 0.0 });
             gl.draw_arrays(glow::TRIANGLES, 0, (tris.len() / 6) as i32);
 
-            // 2. Wireframe / Outlines / Edit Mode Overlays
             if selected || is_edit_mode {
                 let mut edge_verts = Vec::new();
                 for e in &mesh.edges {
@@ -141,7 +134,7 @@ impl GlUnifiedRenderer {
                     let col = if is_edit_mode {
                         if e.selected { Vec3::new(1.0, 0.55, 0.0) } else { Vec3::new(0.15, 0.15, 0.15) }
                     } else {
-                        Vec3::new(1.0, 0.55, 0.0) // Orange outline in Object Mode
+                        Vec3::new(1.0, 0.55, 0.0)
                     };
                     edge_verts.extend_from_slice(&[v0.x, v0.y, v0.z, col.x, col.y, col.z]);
                     edge_verts.extend_from_slice(&[v1.x, v1.y, v1.z, col.x, col.y, col.z]);
@@ -154,7 +147,6 @@ impl GlUnifiedRenderer {
                 }
             }
 
-            // 3. Edit Mode Vertices Points
             if is_edit_mode && select_mode == SelectMode::Vertex {
                 let mut p_verts = Vec::new();
                 for v in &mesh.vertices {
@@ -162,7 +154,7 @@ impl GlUnifiedRenderer {
                     p_verts.extend_from_slice(&[v.position.x, v.position.y, v.position.z, col.x, col.y, col.z]);
                 }
                 if !p_verts.is_empty() {
-                    gl.disable(glow::DEPTH_TEST); // Draw vertices on top
+                    gl.disable(glow::DEPTH_TEST);
                     self.upload_dyn_buffer(&p_verts);
                     self.set_uniforms(&mvp, world, 2, Vec3::ONE, 0.0);
                     gl.draw_arrays(glow::POINTS, 0, (p_verts.len() / 6) as i32);
@@ -172,7 +164,7 @@ impl GlUnifiedRenderer {
         }
     }
 
-    pub fn draw_armature_xray(&self, arm: &mut Armature, world: &Mat4, vp: &Mat4, _is_pose_mode: bool) {
+    pub fn draw_armature_xray(&self, arm: &Armature, world: &Mat4, vp: &Mat4, _is_pose_mode: bool) {
         let pose_matrices = arm.compute_world_pose_matrices();
         let mut bone_lines = Vec::new();
 
@@ -190,7 +182,7 @@ impl GlUnifiedRenderer {
         if !bone_lines.is_empty() {
             unsafe {
                 let gl = &self.gl;
-                gl.disable(glow::DEPTH_TEST); // X-Ray Mode: visible through geometry
+                gl.disable(glow::DEPTH_TEST);
                 self.upload_dyn_buffer(&bone_lines);
                 self.set_uniforms(vp, &Mat4::IDENTITY, 1, Vec3::ONE, 0.0);
                 gl.draw_arrays(glow::LINES, 0, (bone_lines.len() / 6) as i32);
@@ -211,7 +203,7 @@ impl GlUnifiedRenderer {
         let gl = &self.gl;
         gl.bind_vertex_array(Some(self.dyn_vao));
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.dyn_vbo));
-        let bytes = std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data));
+        let bytes = std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * std::mem::size_of::<f32>());
         gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::DYNAMIC_DRAW);
 
         let stride = 6 * std::mem::size_of::<f32>() as i32;
@@ -275,8 +267,8 @@ unsafe fn create_grid(gl: &glow::Context, half: i32) -> Result<(glow::VertexArra
     for i in -half..=half {
         let p = i as f32;
         if i == 0 {
-            v.extend_from_slice(&[-f, 0.0, 0.0, 0.75, 0.25, 0.25, f, 0.0, 0.0, 0.75, 0.25, 0.25]); // X Red
-            v.extend_from_slice(&[0.0, 0.0, -f, 0.25, 0.75, 0.25, 0.0, 0.0, f, 0.25, 0.75, 0.25]); // Y Green
+            v.extend_from_slice(&[-f, 0.0, 0.0, 0.75, 0.25, 0.25, f, 0.0, 0.0, 0.75, 0.25, 0.25]);
+            v.extend_from_slice(&[0.0, 0.0, -f, 0.25, 0.75, 0.25, 0.0, 0.0, f, 0.25, 0.75, 0.25]);
         } else {
             v.extend_from_slice(&[-f, 0.0, p, 0.26, 0.26, 0.26, f, 0.0, p, 0.26, 0.26, 0.26]);
             v.extend_from_slice(&[p, 0.0, -f, 0.26, 0.26, 0.26, p, 0.0, f, 0.26, 0.26, 0.26]);
@@ -286,7 +278,7 @@ unsafe fn create_grid(gl: &glow::Context, half: i32) -> Result<(glow::VertexArra
     let vbo = gl.create_buffer()?;
     gl.bind_vertex_array(Some(vao));
     gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
-    let bytes = std::slice::from_raw_parts(v.as_ptr() as *const u8, std::mem::size_of_val(&v));
+    let bytes = std::slice::from_raw_parts(v.as_ptr() as *const u8, v.len() * std::mem::size_of::<f32>());
     gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
 
     let stride = 6 * std::mem::size_of::<f32>() as i32;
@@ -297,4 +289,4 @@ unsafe fn create_grid(gl: &glow::Context, half: i32) -> Result<(glow::VertexArra
     gl.bind_vertex_array(None);
 
     Ok((vao, vbo, (v.len() / 6) as i32))
-                      }
+}
